@@ -6443,6 +6443,9 @@ For example, `avg(if(cond, col, null))` can be rewritten to `avgOrNullIf(cond, c
     DECLARE(Bool, optimize_rewrite_array_exists_to_has, true, R"(
 Rewrite arrayExists() functions to has() when logically equivalent. For example, arrayExists(x -> x = 1, arr) can be rewritten to has(arr, 1)
 )", 0) \
+    DECLARE(Bool, optimize_rewrite_array_exists_like_to_or, false, R"(
+Rewrite `arrayExists(x -> haystack LIKE x, constant_array)` to an `OR` chain of `LIKE` with constant patterns, so that each `LIKE` can use the fast path for a constant pattern. This is the form that `haystack LIKE SOME([...])` and `haystack ILIKE SOME([...])` are parsed into. For example, `s ILIKE SOME(['%a%', '%b%'])` is rewritten to `s ILIKE '%a%' OR s ILIKE '%b%'`
+)", 0) \
     DECLARE(Bool, optimize_rewrite_has_to_in, true, R"(
 Rewrite `has` functions to `IN` when the first argument is a constant array. For example, `has([1, 2, 3], x)` can be rewritten to `x IN [1, 2, 3]` for better performance with constant arrays
 )", 0) \
