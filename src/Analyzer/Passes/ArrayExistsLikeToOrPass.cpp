@@ -46,6 +46,24 @@ bool containsLambdaArgument(const QueryTreeNodePtr & node, const String & lambda
     return false;
 }
 
+bool isExpressionNonDeterministic(const QueryTreeNodePtr & node){
+    if (!node)
+        return false;
+
+    /// Only check ORDINARY functions for determinism, WINDOW/AGGREGATE functions need
+    /// to have their children checked instead, so we fall through to the recursive check.
+    if (auto * function = node->as<FunctionNode>())
+        if (function->isOrdinaryFunction())
+            if (auto func = function->getFunctionOrThrow(); !func->isDeterministicInScopeOfQuery())
+                return true;
+
+    for (const auto & child : node->getChildren())
+        if (isExpressionNonDeterministic(child))
+            return true;
+
+    return false;
+}
+
 class RewriteArrayExistsLikeToOrVisitor : public InDepthQueryTreeVisitorWithContext<RewriteArrayExistsLikeToOrVisitor>
 {
 public:
@@ -98,6 +116,11 @@ public:
         /// 3c: the text being searched (1st argument) must not use the lambda variable
         if (containsLambdaArgument(like_arguments_nodes[0], lambda_argument_name, lambda_arguments_node))
             return;
+
+        /// 3d: check if we have any non deterministic functions
+        if (isExpressionNonDeterministic(like_arguments_nodes[0]))
+            return;
+
         /// 4: the list must be a constant, non-empty array of strings (no NULLs)
         const auto * patterns_constant_node = array_exists_function_arguments_nodes[1]->as<ConstantNode>();
         if (!patterns_constant_node)
