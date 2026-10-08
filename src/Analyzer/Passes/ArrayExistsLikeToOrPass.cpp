@@ -46,7 +46,8 @@ bool containsLambdaArgument(const QueryTreeNodePtr & node, const String & lambda
     return false;
 }
 
-bool isExpressionNonDeterministic(const QueryTreeNodePtr & node){
+bool isExpressionNonDeterministic(const QueryTreeNodePtr & node)
+{
     if (!node)
         return false;
 
