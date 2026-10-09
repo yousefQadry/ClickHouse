@@ -46,20 +46,22 @@ bool containsLambdaArgument(const QueryTreeNodePtr & node, const String & lambda
     return false;
 }
 
-bool isExpressionNonDeterministic(const QueryTreeNodePtr & node)
+bool isUnsafeToDuplicate(const QueryTreeNodePtr & node)
 {
     if (!node)
         return false;
 
-    /// Only check ORDINARY functions for determinism, WINDOW/AGGREGATE functions need
+    /// Only check ORDINARY functions, WINDOW/AGGREGATE functions need
     /// to have their children checked instead, so we fall through to the recursive check.
-    if (auto * function = node->as<FunctionNode>())
-        if (function->isOrdinaryFunction())
-            if (auto func = function->getFunctionOrThrow(); !func->isDeterministicInScopeOfQuery())
-                return true;
+    if (auto * function = node->as<FunctionNode>(); function && function->isOrdinaryFunction())
+    {
+        auto function_base = function->getFunctionOrThrow();
+        if (!function_base->isDeterministicInScopeOfQuery() || function_base->isStateful() || function_base->hasObservableSideEffects())
+            return true;
+    }
 
     for (const auto & child : node->getChildren())
-        if (isExpressionNonDeterministic(child))
+        if (isUnsafeToDuplicate(child))
             return true;
 
     return false;
@@ -118,8 +120,8 @@ public:
         if (containsLambdaArgument(like_arguments_nodes[0], lambda_argument_name, lambda_arguments_node))
             return;
 
-        /// 3d: check if we have any non deterministic functions
-        if (isExpressionNonDeterministic(like_arguments_nodes[0]))
+        /// 3d: the haystack is cloned once per pattern, so it must be safe to evaluate several times
+        if (isUnsafeToDuplicate(like_arguments_nodes[0]))
             return;
 
         /// 4: the list must be a constant, non-empty array of strings (no NULLs)
